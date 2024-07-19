@@ -1,0 +1,9 @@
+name: Saugykla
+version: '${project.version}'
+main: lt.mredgariux.saugykla.main
+api-version: '1.21'
+commands:
+  saugykla:
+    description: "Tiesiog saugyklos GUI atsiranda xD"
+    aliases:
+      - s
