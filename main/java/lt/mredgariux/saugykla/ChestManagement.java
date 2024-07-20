@@ -1,5 +1,8 @@
 package lt.mredgariux.saugykla;
 
+import lt.mredgariux.saugykla.datasets.Chunk;
+import lt.mredgariux.saugykla.utils.calculations;
+import lt.mredgariux.saugykla.utils.chat;
 import org.bukkit.*;
 import org.bukkit.block.*;
 import org.bukkit.block.data.Directional;
@@ -17,11 +20,12 @@ import java.util.*;
 
 public class ChestManagement {
     private static final String DATA_FILE_NAME = "chests.yml";
+    private static final String DATA_CHUNK_FILE = "chunks.yml";
     private final JavaPlugin plugin;
     private final Map<Material, Location> existingChests = new HashMap<>();
 
-    public final HashMap<Location, Location> chunks = new HashMap<>();
-    private final List<ItemStack> signs = new ArrayList<ItemStack>();
+    private final Map<UUID, Chunk> newChunks = new HashMap<>();
+    private final List<ItemStack> signs = new ArrayList<>();
 
     private void loadSigns() {
         signs.clear();
@@ -40,19 +44,34 @@ public class ChestManagement {
 
     public ChestManagement(JavaPlugin plugin) {
         this.plugin = plugin;
+        loadChunks();
         loadChestData();
-        chunks.put(new Location(Bukkit.getWorld("world"), 2655, 10, -2489), new Location(Bukkit.getWorld("world"), 2659, 10, -2477));
-        chunks.put(new Location(Bukkit.getWorld("world"), 2655, 10, -2475), new Location(Bukkit.getWorld("world"), 2659, 10, -2461));
-        chunks.put(new Location(Bukkit.getWorld("world"), 2647, 10, -2489), new Location(Bukkit.getWorld("world"), 2651, 10, -2477));
-        chunks.put(new Location(Bukkit.getWorld("world"), 2647, 10, -2475), new Location(Bukkit.getWorld("world"), 2651, 10, -2461));
-        chunks.put(new Location(Bukkit.getWorld("world"), 2639, 10, -2489), new Location(Bukkit.getWorld("world"), 2643, 10, -2477));
-        chunks.put(new Location(Bukkit.getWorld("world"), 2639, 10, -2475), new Location(Bukkit.getWorld("world"), 2643, 10, -2461));
-        chunks.put(new Location(Bukkit.getWorld("world"), 2631, 10, -2489), new Location(Bukkit.getWorld("world"), 2635, 10, -2477));
-        chunks.put(new Location(Bukkit.getWorld("world"), 2631, 10, -2475), new Location(Bukkit.getWorld("world"), 2635, 10, -2461));
     }
 
     public boolean is_chest_exists(Location locationas) {
         return existingChests.containsValue(locationas);
+    }
+
+    public boolean create_chunk(Location start, Location end) {
+        // Check if the new chunk collides with existing chunks
+        for (Map.Entry<UUID, Chunk> entry : newChunks.entrySet()) {
+            Chunk c = entry.getValue();
+            Location existingStart = c.getStart();
+            Location existingEnd = c.getEnd();
+
+            if (calculations.isColliding(start, end, existingStart, existingEnd)) {
+                Bukkit.getLogger().warning("New chunk is colliding with " + c.getId());
+                return false; // Collision detected
+            }
+        }
+        UUID unid = UUID.randomUUID();
+        Chunk nc = new Chunk(unid, start, end);
+        newChunks.put(unid, nc);
+
+        saveChunks();
+
+        Bukkit.getLogger().info("New chunk with ID " + unid + " created");
+        return true;
     }
 
     public Material get_material(Location location) {
@@ -65,22 +84,9 @@ public class ChestManagement {
     }
 
     public void delete_chest(Material material) {
+        Location location = existingChests.get(material);
         existingChests.remove(material);
         saveChestData();
-    }
-
-    public void destroy_data(Location location) {
-        Material material = get_material(location);
-        if (location.getY() != 10) {
-            // aha
-            Location updateLocationDown = existingChests.get(material).clone().subtract(0,1,0);
-            if (!updateLocationDown.getBlock().getType().equals(Material.BARREL)) {
-                Bukkit.getLogger().severe("Pizda kokia tai kritinė klaida, egzo neišlaikei duxas");
-                return;
-            }
-
-            // Vėliau krč xDD
-        }
     }
 
     public void highlight_chest(Material material, Player player) {
@@ -127,18 +133,24 @@ public class ChestManagement {
             if (existingChests.containsKey(itemType)) {
                 addItemToChest(existingChests.get(itemType), item, player);
             } else {
+                if (newChunks.isEmpty()) {
+                    Bukkit.getLogger().severe("No available chunks found.");
+                    dropItems(player, item);
+                    player.sendMessage(chat.color("&b - &cNo chunks has been found &b(&a/s chunks&b)"));
+                    continue;
+                }
                 loadSigns();
                 if (((main) plugin).recipeManagement.takeItem(player, Material.BARREL)) {
-                    Bukkit.getLogger().severe("No available barrels.");
+                    Bukkit.getLogger().severe("No usable barrels found in resources.");
                     dropItems(player, item);
-                    player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&c" + item.getType() + " buvo grąžintas, nes nepakanka barreliu jiems sudėti. &a(/s r)"));
+                    player.sendMessage(chat.color("&b - &cAdd barrels &b(&a/s r&b)"));
                     continue;
                 }
 
                 if (signs.isEmpty()) {
-                    Bukkit.getLogger().severe("No available signs.");
+                    Bukkit.getLogger().severe("No usable signs found in resources.");
                     dropItems(player, item);
-                    player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&c" + item.getType() + " buvo grąžintas, nes nepakanka ženklų. &a(/s r)"));
+                    player.sendMessage(chat.color("&b - &cAdd signs &b(&a/s r&b)"));
                     continue;
                 }
 
@@ -150,6 +162,7 @@ public class ChestManagement {
                 } else {
                     Bukkit.getLogger().severe("No available location for placing a new barrels.");
                     dropItems(player, item);
+                    player.sendMessage(chat.color("&b - &cNone of the chunks has enough space to place new barrels &b(&a/s chunks&b)"));
                 }
             }
 
@@ -165,6 +178,18 @@ public class ChestManagement {
                     location.getBlock().setType(Material.AIR);
                 }
                 existingChests.clear();
+                return true;
+            }
+            return false;
+        }
+        return false;
+    }
+
+    public boolean deleteChunkFile() {
+        File file = new File(plugin.getDataFolder(), DATA_CHUNK_FILE);
+        if (file.exists()) {
+            if (file.delete()) {
+                newChunks.clear();
                 return true;
             }
             return false;
@@ -195,8 +220,8 @@ public class ChestManagement {
                     return;
                 }
                 Location aboveLocation = chestLocation.clone().add(0, 1, 0);
-                if (aboveLocation.getY() == 13) {
-                    player.sendMessage("Sorry, bet nebeturit vietos tam itemui xD");
+                if (aboveLocation.getBlock().getType() != Material.AIR) {
+                    player.sendMessage(chat.color("&cThe block is disallowing to place barrel"));
                     dropItems(player, item);
                     return;
                 }
@@ -235,35 +260,6 @@ public class ChestManagement {
         }
     }
 
-    private Material SignToWallSign(Material signMaterial) {
-        switch (signMaterial) {
-            case OAK_SIGN:
-                return Material.OAK_WALL_SIGN;
-            case BIRCH_SIGN:
-                return Material.BIRCH_WALL_SIGN;
-            case DARK_OAK_SIGN:
-                return Material.DARK_OAK_WALL_SIGN;
-            case JUNGLE_SIGN:
-                return Material.JUNGLE_WALL_SIGN;
-            case SPRUCE_SIGN:
-                return Material.SPRUCE_WALL_SIGN;
-            case ACACIA_SIGN:
-                return Material.ACACIA_WALL_SIGN;
-            case BAMBOO_SIGN:
-                return Material.BAMBOO_WALL_SIGN;
-            case CHERRY_SIGN:
-                return Material.CHERRY_WALL_SIGN;
-            case MANGROVE_SIGN:
-                return Material.MANGROVE_WALL_SIGN;
-            case CRIMSON_SIGN:
-                return Material.CRIMSON_WALL_SIGN;
-            case WARPED_SIGN:
-                return Material.WARPED_WALL_SIGN;
-            default:
-                return null; // Handle other cases if needed
-        }
-    }
-
     private void SignPlace(Location loc, ItemStack item, Player playeriui) {
         Location signLocation = loc.clone().subtract(1, 0, 0);
         Block signB = signLocation.getBlock();
@@ -283,7 +279,7 @@ public class ChestManagement {
         Iterator<ItemStack> iterator = signs.iterator();
         while (iterator.hasNext()) {
             ItemStack itemas = iterator.next();
-            Material signWallas = SignToWallSign(itemas.getType());
+            Material signWallas = calculations.SignToWallSign(itemas.getType());
             if (signWallas == null) {
                 Bukkit.getLogger().severe("Failed to find corresponding wall sign material for " + itemas.getType());
                 continue; // Skip this item and proceed to the next
@@ -293,7 +289,7 @@ public class ChestManagement {
             signB.setType(signWallas);
             BlockFace veidas = loc.getBlock().getFace(signB);
             if (veidas == null) {
-                Bukkit.getLogger().warning("Negavau veido naxui");
+                Bukkit.getLogger().warning("Couldn't find a face of the sign");
                 return;
             }
             WallSign walsign = (WallSign) signB.getBlockData();
@@ -338,9 +334,10 @@ public class ChestManagement {
     }
 
     public Location findNextAvailableLocation() {
-        for (Map.Entry<Location, Location> entry : chunks.entrySet()) {
-            Location start = entry.getKey();
-            Location end = entry.getValue();
+        for (Map.Entry<UUID, Chunk> entry : newChunks.entrySet()) {
+            Chunk c = entry.getValue();
+            Location start = c.getStart();
+            Location end = c.getEnd();
             Location availableLocation = findAvailableLocationInChunk(start, end);
             if (availableLocation != null) {
                 return availableLocation;
@@ -387,13 +384,7 @@ public class ChestManagement {
             }
 
             // Ensure the data folder exists
-            if (!plugin.getDataFolder().exists()) {
-                if (!plugin.getDataFolder().mkdirs()) {
-                    Bukkit.getLogger().severe("Nepavyko sukurt kaiko nx");
-                    plugin.getPluginLoader().disablePlugin(plugin);
-                    return;
-                }
-            }
+            checkDataFolder();
 
             // Save the config to the file in the plugin's data folder
             File dataFile = new File(plugin.getDataFolder(), DATA_FILE_NAME);
@@ -401,6 +392,79 @@ public class ChestManagement {
             Bukkit.getLogger().info("Saved chest data");
         } catch (IOException e) {
             Bukkit.getLogger().severe("Failed to save chest data to file: " + e.getMessage());
+        }
+    }
+
+    private void checkDataFolder(){
+        if (!plugin.getDataFolder().exists()) {
+            if (!plugin.getDataFolder().mkdirs()) {
+                Bukkit.getLogger().severe("Nepavyko sukurt kaiko nx");
+                plugin.getPluginLoader().disablePlugin(plugin);
+            }
+        }
+    }
+
+    public void saveChunks() {
+        File dataFile = new File(plugin.getDataFolder(), DATA_CHUNK_FILE);
+        YamlConfiguration config = new YamlConfiguration();
+
+        for (Map.Entry<UUID, Chunk> entry : newChunks.entrySet()) {
+            UUID chunkId = entry.getKey();
+            Chunk chunk = entry.getValue();
+
+            Location start = chunk.getStart();
+            Location end = chunk.getEnd();
+
+            String key = chunkId.toString();
+            config.set(key + ".start.world", start.getWorld().getName());
+            config.set(key + ".start.x", start.getX());
+            config.set(key + ".start.y", start.getY());
+            config.set(key + ".start.z", start.getZ());
+            config.set(key + ".end.world", end.getWorld().getName());
+            config.set(key + ".end.x", end.getX());
+            config.set(key + ".end.y", end.getY());
+            config.set(key + ".end.z", end.getZ());
+            config.set(key + ".size", chunk.getChunkSize());
+        }
+
+        try {
+            config.save(dataFile);
+            Bukkit.getLogger().info("[Chunks] Saved");
+        } catch (IOException e) {
+            Bukkit.getLogger().warning(e.getMessage());
+        }
+    }
+
+    public void loadChunks() {
+        newChunks.clear();
+        File dataFile = new File(plugin.getDataFolder(), DATA_CHUNK_FILE);
+        if (!dataFile.exists()) {
+            Bukkit.getLogger().info("No chunks.yml file found");
+            return;
+        }
+
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(dataFile);
+
+        for (String key : config.getKeys(false)) {
+            UUID chunkId = UUID.fromString(key);
+
+            String worldName = config.getString(key + ".start.world");
+            World world = Bukkit.getWorld(worldName);
+            if (world == null) continue;
+
+            double startX = config.getDouble(key + ".start.x");
+            double startY = config.getDouble(key + ".start.y");
+            double startZ = config.getDouble(key + ".start.z");
+            double endX = config.getDouble(key + ".end.x");
+            double endY = config.getDouble(key + ".end.y");
+            double endZ = config.getDouble(key + ".end.z");
+            int size = config.getInt(key + ".size");
+
+            Location startLocation = new Location(world, startX, startY, startZ);
+            Location endLocation = new Location(world, endX, endY, endZ);
+
+            newChunks.put(chunkId, new Chunk(chunkId, startLocation, endLocation));
+            Bukkit.getLogger().info("[Chunks] Chunk " + chunkId + " loaded");
         }
     }
 
