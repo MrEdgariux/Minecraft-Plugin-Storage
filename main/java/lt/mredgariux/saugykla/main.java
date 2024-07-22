@@ -1,6 +1,7 @@
 package lt.mredgariux.saugykla;
 
 import lt.mredgariux.saugykla.commands.saugyklaCommand;
+import lt.mredgariux.saugykla.commands.saugyklaTabComplete;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -21,6 +22,7 @@ public final class main extends JavaPlugin {
 
         // Register command "saugykla"
         Objects.requireNonNull(this.getCommand("saugykla")).setExecutor(new saugyklaCommand());
+        Objects.requireNonNull(this.getCommand("saugykla")).setTabCompleter(new saugyklaTabComplete());
 
         // Register events
         this.getServer().getPluginManager().registerEvents(new saugyklaCommand(), this);

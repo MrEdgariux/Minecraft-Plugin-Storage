@@ -20,9 +20,10 @@ import java.util.*;
 
 public class ChestManagement {
     private static final String DATA_FILE_NAME = "chests.yml";
+    private static final String DATA_FILE_new_NAME = "chests_v2.yml";
     private static final String DATA_CHUNK_FILE = "chunks.yml";
     private final JavaPlugin plugin;
-    private final Map<Material, Location> existingChests = new HashMap<>();
+    private final Map<Material, List<Location>> existingChests = new HashMap<>();
 
     private final Map<UUID, Chunk> newChunks = new HashMap<>();
     private final List<ItemStack> signs = new ArrayList<>();
@@ -49,7 +50,7 @@ public class ChestManagement {
     }
 
     public boolean is_chest_exists(Location locationas) {
-        return existingChests.containsValue(locationas);
+        return existingChests.values().stream().flatMap(List::stream).anyMatch(loc -> loc.equals(locationas));
     }
 
     public boolean create_chunk(Location start, Location end) {
@@ -64,6 +65,7 @@ public class ChestManagement {
                 return false; // Collision detected
             }
         }
+
         UUID unid = UUID.randomUUID();
         Chunk nc = new Chunk(unid, start, end);
         newChunks.put(unid, nc);
@@ -74,18 +76,31 @@ public class ChestManagement {
         return true;
     }
 
-    public Material get_material(Location location) {
-        for (Map.Entry<Material, Location> entry : existingChests.entrySet()) {
-            if (entry.getValue().equals(location)) {
-                return entry.getKey();
+    public Material getMaterial(Location location) {
+        for (Map.Entry<Material, List<Location>> entry : existingChests.entrySet()) {
+            List<Location> locations = entry.getValue();
+            for (Location loc : locations) {
+                if (loc.equals(location)) {
+                    return entry.getKey();
+                }
             }
         }
-        return null; // Or return an empty ItemStack if you prefer
+        return null;
     }
 
-    public void delete_chest(Material material) {
-        Location location = existingChests.get(material);
-        existingChests.remove(material);
+    public boolean materialAre(Material material) {
+        return existingChests.containsKey(material);
+    }
+
+    public void delete_chest(Material material, Location location) {
+        List<Location> locations = existingChests.get(material);
+        if (locations != null) {
+            locations.remove(location);
+            if (locations.isEmpty()) {
+                existingChests.remove(material);
+            }
+            saveChestData();
+        }
         saveChestData();
     }
 
@@ -94,11 +109,12 @@ public class ChestManagement {
             player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&4[&cSaugykla&4] &cNesaugote šio daikto saugyklose"));
             return;
         }
-        Location location = existingChests.get(material);
-        Location signLocation = location.clone().subtract(1,0,0);
+        List<Location> locations = existingChests.get(material);
+        Location last_location = locations.getLast();
+        Location signLocation = last_location.clone().subtract(1,0,0);
         if (!signLocation.getBlock().getType().toString().endsWith("_SIGN")) {
             player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&4[&cSaugykla&4] &cRadau vieta, tačiau negaliu paryškinti ženklo, kadangi tokio neradau :("));
-            player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&4[&cSaugykla&4] &a" + location.getX() + " " + location.getY() + " " + location.getZ()));
+            player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&4[&cSaugykla&4] &a" + last_location.getX() + " " + last_location.getY() + " " + last_location.getZ()));
             return;
         }
 
@@ -131,7 +147,8 @@ public class ChestManagement {
 
             // Check if a chest with the item already exists
             if (existingChests.containsKey(itemType)) {
-                addItemToChest(existingChests.get(itemType), item, player);
+                Bukkit.getLogger().info("[Storage] Adding " + itemType + " to the barrels");
+                addItemToChest(existingChests.get(itemType).getFirst(), item, player);
             } else {
                 if (newChunks.isEmpty()) {
                     Bukkit.getLogger().severe("No available chunks found.");
@@ -158,7 +175,7 @@ public class ChestManagement {
                 Location chestLocation = findNextAvailableLocation();
                 if (chestLocation != null) {
                     addItemToNewChest(chestLocation, item, player);
-                    existingChests.put(itemType, chestLocation);
+                    existingChests.computeIfAbsent(item.getType(), k -> new ArrayList<>()).add(chestLocation);
                 } else {
                     Bukkit.getLogger().severe("No available location for placing a new barrels.");
                     dropItems(player, item);
@@ -174,8 +191,10 @@ public class ChestManagement {
         File file = new File(plugin.getDataFolder(), DATA_FILE_NAME);
         if (file.exists()) {
             if (file.delete()) {
-                for (Location location : existingChests.values()) {
-                    location.getBlock().setType(Material.AIR);
+                for (List<Location> location : existingChests.values()) {
+                    for (Location loc : location) {
+                        loc.getBlock().setType(Material.AIR);
+                    }
                 }
                 existingChests.clear();
                 return true;
@@ -226,7 +245,7 @@ public class ChestManagement {
                     return;
                 }
                 addItemToNewChest(aboveLocation, leftover.values().iterator().next(), player);
-                existingChests.put(item.getType(), aboveLocation);
+                existingChests.computeIfAbsent(item.getType(), k -> new ArrayList<>()).add(aboveLocation);
             }
         } else {
             Bukkit.getLogger().warning("Location " + chestLocation + " does not contain a chest.");
@@ -375,19 +394,62 @@ public class ChestManagement {
     }
 
 
+    // Save data - Migration from old version to new one
+    public boolean migrateChestData() {
+        File dataFile = new File(plugin.getDataFolder(), DATA_FILE_NAME);
+        File dataFileNew = new File(plugin.getDataFolder(), DATA_FILE_new_NAME);
+        if (!dataFile.exists()) {
+            Bukkit.getLogger().info("[Migration] No file was found to migrate from, not loading any data.");
+            return false;
+        }
+
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(dataFile);
+        YamlConfiguration newConfig = new YamlConfiguration();
+
+        for (String key : config.getKeys(false)) {
+            Material material = Material.getMaterial(key);
+            String serializedLocation = config.getString(key);
+
+            if (material != null && serializedLocation != null) {
+                List<String> locationsList = new ArrayList<>();
+                locationsList.add(serializedLocation); // Adding the single location to the list
+
+                // Add the new list of locations to the new config
+                newConfig.set(material.name(), locationsList);
+            }
+        }
+
+        // Save the new configuration
+        try {
+            checkDataFolder(); // Ensure the data folder exists
+            newConfig.save(dataFileNew);
+            Bukkit.getLogger().info("[Migration] Successfully migrated all chest data from old format to new one ;)");
+            return true;
+        } catch (IOException e) {
+            Bukkit.getLogger().severe("Failed to save migrated chest data to file: " + e.getMessage());
+            return false;
+        }
+    }
+
+
     public void saveChestData() {
         YamlConfiguration config = new YamlConfiguration();
         try {
             // Save each entry in the existingChests map
-            for (Map.Entry<Material, Location> entry : existingChests.entrySet()) {
-                config.set(entry.getKey().name(), serializeLocation(entry.getValue()));
+            for (Map.Entry<Material, List<Location>> entry : existingChests.entrySet()) {
+                String materialKey = entry.getKey().name();
+                List<String> serializedLocations = new ArrayList<>();
+                for (Location location : entry.getValue()) {
+                    serializedLocations.add(serializeLocation(location));
+                }
+                config.set(materialKey, serializedLocations);
             }
 
             // Ensure the data folder exists
             checkDataFolder();
 
             // Save the config to the file in the plugin's data folder
-            File dataFile = new File(plugin.getDataFolder(), DATA_FILE_NAME);
+            File dataFile = new File(plugin.getDataFolder(), DATA_FILE_new_NAME);
             config.save(dataFile);
             Bukkit.getLogger().info("Saved chest data");
         } catch (IOException e) {
@@ -469,20 +531,36 @@ public class ChestManagement {
     }
 
     public void loadChestData() {
-        Bukkit.getLogger().info("Loading chest data from file: " + DATA_FILE_NAME);
-        File dataFile = new File(plugin.getDataFolder(), DATA_FILE_NAME);
+        Bukkit.getLogger().info("Loading chest data from file: " + DATA_FILE_new_NAME);
+        File dataFile = new File(plugin.getDataFolder(), DATA_FILE_new_NAME);
         if (!dataFile.exists()) {
-            Bukkit.getLogger().info("No data file found");
-            return;
+            Bukkit.getLogger().info("No data file found, migrating then if that one exists xD");
+            if (!migrateChestData()) {
+                return;
+            }
+
+            if (!dataFile.exists()) {
+                Bukkit.getLogger().info("No data file found after migration, error occured ;)");
+                return;
+            }
         }
 
         YamlConfiguration config = YamlConfiguration.loadConfiguration(dataFile);
         for (String key : config.getKeys(false)) {
             Material material = Material.getMaterial(key);
-            Location location = deserializeLocation(Objects.requireNonNull(config.getString(key)));
-            Bukkit.getLogger().info("Loaded chest material " + material + " at " + location);
-            if (material != null && location != null) {
-                existingChests.put(material, location);
+            List<String> serializedLocations = config.getStringList(key);
+            List<Location> locations = new ArrayList<>();
+
+            for (String serializedLocation : serializedLocations) {
+                Location location = deserializeLocation(serializedLocation);
+                if (location != null) {
+                    locations.add(location);
+                }
+            }
+
+            if (material != null) {
+                existingChests.put(material, locations);
+                Bukkit.getLogger().info("Loaded chest material " + material + " with locations " + locations);
             }
         }
     }

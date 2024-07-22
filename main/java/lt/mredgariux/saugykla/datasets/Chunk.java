@@ -49,9 +49,8 @@ public class Chunk {
     // Utility method to calculate chunk size
     private int calculateChunkSize(Location start, Location end) {
         int width = Math.abs(start.getBlockX() - end.getBlockX());
-        int height = Math.abs(start.getBlockY() - end.getBlockY());
         int depth = Math.abs(start.getBlockZ() - end.getBlockZ());
-        return width * height * depth; // Example calculation
+        return width * depth; // Example calculation
     }
 
     @Override

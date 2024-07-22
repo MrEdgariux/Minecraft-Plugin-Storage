@@ -1,0 +1,40 @@
+barrels:
+  max_height: 3 # Use -1 to make it infinitely (only up to mc allowed height xd)
+  delete_empty_barrels: true
+  allow_item_mix: false # Allow item mixing where they do not belong? (It may confuse the plugin's logic)
+
+chunks:
+  max_size: 512
+
+resources:
+  gui_size: 9 # You can choose only from: [9,18,27,36,45,54]
+  convert_chests_to_barrels: true # If you wanna only allow barrels to be placed in resources, set this to false, otherwise chests will be also allowed and auto converted to barrels
+
+translations:
+  console: "You cannot do that!"
+  reset: "&cReset successful"
+  reset_fail: "&cWe ran into an issue while reseting databases and barrels"
+  no_perm: "&cYou could not do that without some permissions!"
+  not_enough_args_resources: "&b- &cNot enough arguments provided &b(&a/s hl <material>&b)&c example &b(&a/s hl raw_iron&b)"
+  not_enough_args_chunks: "&b- &cNot enough arguments provided &b(&a/s chunks <start|end>&b)&c example &b(&a/s chunks start&b)"
+  unknown_item: "&b- &cUnknown item provided"
+  not_exist: "&b- &cYou're not storing this item in any barrels"
+  chunks_start_look_at_the_block: "&b- &cYou need to look at the block you wanna create start point from"
+  chunks_start_success: "&b- &aSuccessfully took start point coordinates!"
+  chunks_end_look_at_the_block: "&b- &cYou need to look at the block you wanna create end point to"
+  chunks_end_success: "&b- &aSuccessfully took end point coordinates!"
+  chunk_created: "&b- &aChunk created successfully!"
+  chunk_overlaps: "&b- &cYour chunk overlaps with existing chunks, consider re-pointing your chunks."
+  chunk_too_large: "&b- &cYour created chunk must have less then 512 blocks in it"
+  barrels_highlight_success: "&b- &a%s highlighted!"
+  barrels_highlight_expired: "&b- &c%s highlight expired!"
+  barrels_highlight_no_sign: "&b- &c%s found, but no sign found!"
+  barrels_mixing_items: "&b- &c&lDo not mix items where they're not belong to!"
+  barrels_destroyed_empty: "&b- &cEmpty barrel detected, destroying..."
+  barrels_destroy_success: "&b- &aBarrel destroyed"
+  barrels_destroy_have_items: "&b- &cStrange, it has items, I am so confused now..."
+  barrels_destroy_fail: "&ci hate this game...."
+  resources_barrel_not_enough: "&b- &cAdd barrels &b(&a/s r&b)"
+  resources_sign_not_enough: "&b- &cAdd signs &b(&a/s r&b)"
+  resources_not_allowed: "&b- &c%s isn't allowed!"
+  resources_saved: "&b- &aResources saved!"

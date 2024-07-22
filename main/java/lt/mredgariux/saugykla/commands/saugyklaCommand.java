@@ -69,8 +69,13 @@ public class saugyklaCommand implements CommandExecutor, Listener {
                 p.openInventory(inv);
             } else if (strings[0].equalsIgnoreCase("hl")) {
                 if (strings.length != 2) {
-                    p.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cNot enough arguments (/s hl <material>) example (/s hl raw_iron)"));
-                    return false;
+                    if (p.getInventory().getItemInMainHand().getType() != Material.AIR) {
+                        ((main) plugin).chestManagement.highlight_chest(p.getInventory().getItemInMainHand().getType(), p);
+                        return true;
+                    } else {
+                        p.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cHave item in main hand or use command like this (/s hl <material>) example (/s hl raw_iron)"));
+                        return false;
+                    }
                 }
 
                 try {
@@ -126,6 +131,11 @@ public class saugyklaCommand implements CommandExecutor, Listener {
                             startPos = null;
                             endPos = null;
                             return false;
+                        } else if (calculations.calculateChunkSize(startPos, endPos) < 3) {
+                            p.sendMessage(chat.color("&cYour created chunk is too small to be saved."));
+                            startPos = null;
+                            endPos = null;
+                            return false;
                         }
 
                         if (!((main) plugin).chestManagement.create_chunk(startPos, endPos)) {
@@ -140,6 +150,18 @@ public class saugyklaCommand implements CommandExecutor, Listener {
                     }
                     return false;
                 }
+            } else if (strings[0].equalsIgnoreCase("s")) {
+                if (p.getInventory().getItemInMainHand().getType() != Material.AIR) {
+                    if (((main) plugin).chestManagement.materialAre(p.getInventory().getItemInMainHand().getType())) {
+                        p.sendMessage(chat.color("&b- &aThis item exists in the barrels somewhere."));
+                    } else {
+                        p.sendMessage(chat.color("&b- &cThis item isn't anywhere in the barrels."));
+                    }
+                } else {
+                    p.sendMessage(chat.color("&b- &cHold item in the hands to search."));
+                }
+            } else {
+                p.sendMessage(ChatColor.translateAlternateColorCodes('&', "&b- &c/s " + strings[1] + " &cis unknown argument for the command."));
             }
         } else {
             // Create GUI
@@ -167,27 +189,19 @@ public class saugyklaCommand implements CommandExecutor, Listener {
         if (inventory.getHolder() instanceof Barrel barrel) {
             Location location = barrel.getLocation();
             if (((main) plugin).chestManagement.is_chest_exists(location)) {
-                Bukkit.getLogger().info(location.toString() + " have barrel in database, by player " + e.getPlayer().getName());
-
                 // Scan inventory
                 ItemStack[] itemai = inventory.getStorageContents();
-                Material expected_item_materials = ((main) plugin).chestManagement.get_material(location);
+                Material expected_item_materials = ((main) plugin).chestManagement.getMaterial(location);
                 int scanned_rows = 0;
                 for (ItemStack itemas : itemai) {
-                    if (itemas.getType() != expected_item_materials) {
+                    if (itemas != null && itemas.getType() != expected_item_materials) {
                         ((main) plugin).chestManagement.dropItems((Player) e.getPlayer(), itemas);
                         inventory.removeItem(itemas);
-                        e.getPlayer().sendMessage(ChatColor.translateAlternateColorCodes('&', "&4[&cSaugykla&4] &c&lNEMAIŠYK DAIKTŲ TAN, KUR JIE NEPRIKLAUSO!."));
+                        e.getPlayer().sendMessage(ChatColor.translateAlternateColorCodes('&', "&b- &cThis item does not belong here"));
                     } else {
                         scanned_rows++;
                     }
                 }
-                if (scanned_rows != 0) {
-                    return;
-                }
-                Bukkit.getLogger().info("Sistema nerado daiktų barrelyje xD");
-                e.getPlayer().sendMessage(ChatColor.translateAlternateColorCodes('&', "&4[&cSaugykla&4] &aSunaikintas tuščias barrelis."));
-                // Tipo naikina xD
             }
         }
     }
@@ -199,10 +213,10 @@ public class saugyklaCommand implements CommandExecutor, Listener {
         Block block = e.getBlock();
         if (block.getType() == Material.BARREL) {
             if (((main) plugin).chestManagement.is_chest_exists(block.getLocation())) {
-                Material matas = ((main) plugin).chestManagement.get_material(block.getLocation());
-                ((main) plugin).chestManagement.delete_chest(matas);
+                Material matas = ((main) plugin).chestManagement.getMaterial(block.getLocation());
+                ((main) plugin).chestManagement.delete_chest(matas, block.getLocation());
 
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&c[Saugyklos] &aSekmingai sunaikinote saugykla"));
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&b- &cSuccessfully destroyed storage"));
             }
         }
     }
