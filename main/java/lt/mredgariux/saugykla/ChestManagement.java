@@ -1,6 +1,7 @@
 package lt.mredgariux.saugykla;
 
 import lt.mredgariux.saugykla.datasets.Chunk;
+import lt.mredgariux.saugykla.datasets.Runnables;
 import lt.mredgariux.saugykla.utils.calculations;
 import lt.mredgariux.saugykla.utils.chat;
 import org.bukkit.*;
@@ -15,7 +16,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
 
 public class ChestManagement {
@@ -24,7 +26,9 @@ public class ChestManagement {
     private static final String DATA_CHUNK_FILE = "chunks.yml";
     private final JavaPlugin plugin;
     private final Map<Material, List<Location>> existingChests = new HashMap<>();
-    private final Map<Player, BukkitRunnable> particles = new HashMap<>();
+    private final List<Runnables> particles = new ArrayList<>();
+
+    private final boolean debugas = false;
 
     private final Map<UUID, Chunk> newChunks = new HashMap<>();
     private final List<ItemStack> signs = new ArrayList<>();
@@ -77,6 +81,20 @@ public class ChestManagement {
         return true;
     }
 
+    /* --- [ THESE ARE USED ONLY FOR DEBUG PURPOSES ] --- */
+
+    public Map<Material, List<Location>> getEXChests() {
+        return existingChests;
+    }
+
+    public List<Runnables> getParticles() {
+        return particles;
+    }
+
+    public Map<UUID, Chunk> getChunks() {
+        return newChunks;
+    }
+
     public Material getMaterial(Location location) {
         for (Map.Entry<Material, List<Location>> entry : existingChests.entrySet()) {
             List<Location> locations = entry.getValue();
@@ -89,20 +107,85 @@ public class ChestManagement {
         return null;
     }
 
+    public Location getLocation(Material material) {
+        if (!existingChests.containsKey(material)) {
+            return null;
+        }
+        return existingChests.get(material).getFirst();
+    }
+
+    public int getNearestChunkLocation(Location playerLocation) {
+        Location nearestLocation = null;
+        int smallestDistance = Integer.MAX_VALUE;
+
+        if (newChunks.isEmpty()) {
+            return Integer.MAX_VALUE;
+        }
+
+        for (Map.Entry<UUID, Chunk> entry : newChunks.entrySet()) {
+            Location chunkLocation = entry.getValue().getStart();
+
+            if (chunkLocation != null) {
+                int distance = calculations.calculateDistanceBetweenLocations(playerLocation, chunkLocation);
+
+                if (distance < smallestDistance) {
+                    smallestDistance = distance;
+                    nearestLocation = chunkLocation;
+                }
+            }
+        }
+
+        return smallestDistance;
+    }
+
     public boolean materialAre(Material material) {
         return existingChests.containsKey(material);
     }
 
-    public void delete_chest(Material material, Location location) {
+    public boolean delete_chest(Material material, Location location) {
         List<Location> locations = existingChests.get(material);
         if (locations != null) {
             locations.remove(location);
             if (locations.isEmpty()) {
                 existingChests.remove(material);
             }
+            if (!particles.isEmpty()) {
+                Iterator<Runnables> iterator = particles.iterator();
+                while (iterator.hasNext()) {
+                    Runnables run = iterator.next();
+                    if (run.getMaterial() == material) {
+                        run.getRunnable().cancel();
+                        run.getPlayer().sendMessage(chat.color("&b- &cThe barrel which you wanted to navigate to was destroyed by other player"));
+                        iterator.remove(); // Use iterator to remove the element
+                    }
+                }
+            }
+            if (location.getBlock().getType().equals(Material.BARREL)) {
+                Barrel barrel = (Barrel) location.getBlock().getState();
+                Inventory inventory = barrel.getInventory();
+                for (ItemStack item : inventory.getStorageContents()) {
+                    if (item == null) continue;
+                    Objects.requireNonNull(location.getWorld()).dropItem(location, item);
+                }
+                Location signLocation = location.clone().subtract(1,0,0);
+                if (signLocation.getBlock().getType().toString().endsWith("_SIGN")) {
+                    Material signMaterial = signLocation.getBlock().getType();
+                    signLocation.getBlock().setType(Material.AIR);
+
+                    ItemStack signas = new ItemStack(signMaterial);
+                    signas.setAmount(1);
+                    ((main) plugin).recipeManagement.refundItem(signas);
+                }
+                location.getBlock().setType(Material.AIR);
+                ItemStack barelis = new ItemStack(Material.BARREL);
+                barelis.setAmount(1);
+                ((main) plugin).recipeManagement.refundItem(barelis);
+            }
             saveChestData();
+            return true;
         }
         saveChestData();
+        return false;
     }
 
     public void highlight_chest(Material material, Player player) {
@@ -112,11 +195,17 @@ public class ChestManagement {
         }
         List<Location> locations = existingChests.get(material);
         Location last_location = locations.getLast();
-        if (particles.containsKey(player)) {
-            particles.get(player).cancel();
-            particles.remove(player);
-            player.sendMessage(chat.color("&b- &cPrevious path hidden"));
-            return;
+        if (!particles.isEmpty()) {
+            Iterator<Runnables> iterator = particles.iterator();
+            while (iterator.hasNext()) {
+                Runnables data = iterator.next();
+                if (data.getPlayer() == player && data.getMaterial() == material) {
+                    data.getRunnable().cancel();
+                    iterator.remove(); // Use the iterator to remove the element
+                    player.sendMessage(chat.color("&b- &cPath to the &2" + material + "&c hidden"));
+                    return;
+                }
+            }
         }
         BukkitRunnable particleTask = new BukkitRunnable() {
             @Override
@@ -125,7 +214,8 @@ public class ChestManagement {
             }
         };
         particleTask.runTaskTimer(plugin, 0L, 2L);
-        particles.put(player, particleTask);
+        Runnables run = new Runnables(player, material, last_location, particleTask);
+        particles.add(run);
         player.sendMessage(chat.color("&b- &aShowing path to the &2" + material));
     }
 
@@ -136,6 +226,20 @@ public class ChestManagement {
         Location end2 = end.clone().add(0.5,0.5,0.5);
         Location start2 = start.clone().add(0, 0.5, 0);
         double interval = 1.0 / numberOfParticles;
+        int distance = calculations.calculateDistanceBetweenLocations(start, end);
+        if (distance >= 128) {
+            Iterator<Runnables> iterator = particles.iterator();
+
+            while (iterator.hasNext()) {
+                Runnables runData = iterator.next();
+                if (runData.getWhereMaterial() == end) {
+                    runData.getRunnable().cancel();
+                    runData.getPlayer().sendMessage(chat.color("&cYou ran too far, so path was hidden automatically."));
+                    iterator.remove();
+                    return;
+                }
+            }
+        }
         for (int i = 0; i <= numberOfParticles; i++) {
             double t = i * interval;
             double x = start2.getX() + t * (end2.getX() - start2.getX());
@@ -148,19 +252,51 @@ public class ChestManagement {
         }
     }
 
+    public boolean isBarrelFull(Location location) {
+        Block block = location.getBlock();
+        if (!(block.getState() instanceof Barrel barrel)) {
+            return false;
+        }
+
+        Inventory inventory = barrel.getInventory();
+
+        // Check if the barrel is full
+        for (int i = 0; i < inventory.getSize(); i++) {
+            if (inventory.getItem(i) == null) {
+                return false; // Found an empty slot
+            }
+        }
+        return true; // No empty slots found
+    }
+
+    public boolean isBarrelEmpty(Location location) {
+        Block block = location.getBlock();
+        if (!(block.getState() instanceof Barrel barrel)) {
+            return false;
+        }
+
+        Inventory inventory = barrel.getInventory();
+
+        // Check if the barrel is full
+        for (int i = 0; i < inventory.getSize(); i++) {
+            if (inventory.getItem(i) != null) {
+                return false; // Found an empty slot
+            }
+        }
+        return true; // No empty slots found
+    }
+
     public void placeItemsInChests(ItemStack[] items, Player player) {
         for (ItemStack item : items) {
             if (item == null) continue;
             Material itemType = item.getType();
 
-
-
             // Check if a chest with the item already exists
             if (existingChests.containsKey(itemType)) {
-                Bukkit.getLogger().info("[Storage | Debug] Adding " + itemType + " (" + item.getAmount() + ") to the barrels");
-                addItemToChest(existingChests.get(itemType).getLast(), item, player);
+                if (debugas) Bukkit.getLogger().info("[Storage | Debug] Adding " + itemType + " (" + item.getAmount() + ") to the barrels");
+                addItemToChest(existingChests.get(itemType), item, player);
             } else {
-                Bukkit.getLogger().info("[Storage | Debug] Creating new barrel for " + itemType + " (" + item.getAmount() + ")");
+                if (debugas) Bukkit.getLogger().info("[Storage | Debug] Creating new barrel for " + itemType + " (" + item.getAmount() + ")");
                 if (newChunks.isEmpty()) {
                     Bukkit.getLogger().severe("No available chunks found.");
                     dropItems(player, item);
@@ -186,7 +322,7 @@ public class ChestManagement {
                 Location chestLocation = findNextAvailableLocation();
                 if (chestLocation != null) {
                     addItemToNewChest(chestLocation, item, player);
-                    existingChests.computeIfAbsent(item.getType(), _ -> new ArrayList<>()).add(chestLocation);
+                    existingChests.computeIfAbsent(item.getType(), k -> new ArrayList<>()).add(chestLocation);
                 } else {
                     Bukkit.getLogger().severe("No available location for placing a new barrels.");
                     dropItems(player, item);
@@ -227,42 +363,64 @@ public class ChestManagement {
         return false;
     }
 
-    private void addItemToChest(Location chestLocation, ItemStack item, Player player) {
-        Block block = chestLocation.getBlock();
-        if (block.getType() == Material.BARREL) {
-            Barrel chest = (Barrel) block.getState();
-            Inventory inventory = chest.getInventory();
+    private void addItemToChest(List<Location> locations, ItemStack item, Player player) {
+        Map<Integer, ItemStack> leftover = item.getAmount() > 0 ? Collections.singletonMap(0, item) : Collections.emptyMap();
 
-            Map<Integer, ItemStack> leftover = inventory.addItem(item);
-            if (!leftover.isEmpty()) {
-                loadSigns();
-                if (((main) plugin).recipeManagement.takeItem(Material.BARREL)) {
-                    Bukkit.getLogger().severe("No available barrels.");
-                    dropItems(player, item);
-                    player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&c " + item.getType() + " buvo grąžintas, nes nepakanka barreliu jiems sudėti &a(/s r)"));
-                    return;
-                }
-
-                if (signs.isEmpty()) {
-                    Bukkit.getLogger().severe("No available signs.");
-                    dropItems(player, item);
-                    player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&c" + item.getType() + " buvo grąžintas, nes nepakanka ženklų. &a(/s r)"));
-                    return;
-                }
-                Location aboveLocation = chestLocation.clone().add(0, 1, 0);
-                if (aboveLocation.getBlock().getType() != Material.AIR) {
-                    player.sendMessage(chat.color("&cThe block is disallowing to place barrel"));
-                    Bukkit.getLogger().info(aboveLocation + " and " + chestLocation);
-                    dropItems(player, item);
-                    return;
-                }
-                addItemToNewChest(aboveLocation, leftover.values().iterator().next(), player);
-                existingChests.computeIfAbsent(item.getType(), _ -> new ArrayList<>()).add(aboveLocation);
+        for (Location chestLocation : locations) {
+            if (isBarrelFull(chestLocation)) {
+                if (debugas) Bukkit.getLogger().info("[Barrels | Debug] Barrel " + chestLocation + " of " + item.getType() + " is full.");
+                continue;
             }
-        } else {
-            Bukkit.getLogger().warning("Location " + chestLocation + " does not contain a chest.");
-            dropItems(player, item);
-            player.sendMessage("Item " + item.getType() + " added back to the inventory because it does not have barrel to be put in.");
+            if (debugas) Bukkit.getLogger().info("[Barrels | Debug] Barrel " + chestLocation + " of " + item.getType() + " has some space :)");
+            Block block = chestLocation.getBlock();
+            if (block.getType() == Material.BARREL) {
+                Barrel chest = (Barrel) block.getState();
+                Inventory inventory = chest.getInventory();
+
+                // Add items to the chest
+                leftover = inventory.addItem(leftover.values().toArray(new ItemStack[0]));
+
+                if (leftover.isEmpty()) {
+                    return; // All items added successfully
+                }
+            } else {
+                if (debugas) Bukkit.getLogger().severe("[Barrels | Debug] Location " + chestLocation + " of " + item.getType() + " does not have barrel where it should have :|");
+                dropItems(player, leftover.values().iterator().next());
+                player.sendMessage("All items in leftover was added back to your inventory because it does not have barrel to be put in.");
+                return;
+            }
+        }
+
+        if (!leftover.isEmpty()) {
+            loadSigns();
+            if (((main) plugin).recipeManagement.takeItem(Material.BARREL)) {
+                Bukkit.getLogger().severe("No available barrels.");
+                dropItems(player, item);
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&c " + item.getType() + " buvo grąžintas, nes nepakanka barreliu jiems sudėti &a(/s r)"));
+                return;
+            }
+
+            if (signs.isEmpty()) {
+                Bukkit.getLogger().severe("No available signs.");
+                dropItems(player, item);
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&c" + item.getType() + " buvo grąžintas, nes nepakanka ženklų. &a(/s r)"));
+                return;
+            }
+            Location chestLocation = locations.getLast();
+            Location aboveLocation = chestLocation.clone().add(0, 1, 0);
+            if (aboveLocation.getBlock().getType() != Material.AIR) {
+                player.sendMessage(chat.color("&cThe block is disallowing to place barrel"));
+                Bukkit.getLogger().info(aboveLocation + " and " + chestLocation);
+                dropItems(player, item);
+                return;
+            } else if (aboveLocation.getBlock().getType() == Material.BARREL) {
+                Bukkit.getLogger().info(aboveLocation + " has already barrel dfk?");
+                player.sendMessage(chat.color("&cThe barrel is disallowing to place barrel loll (idk how but ye)"));
+                dropItems(player, item);
+                return;
+            }
+            addItemToNewChest(aboveLocation, leftover.values().iterator().next(), player);
+            existingChests.computeIfAbsent(item.getType(), k -> new ArrayList<>()).add(aboveLocation);
         }
     }
 
@@ -572,9 +730,8 @@ public class ChestManagement {
             if (material != null) {
                 existingChests.put(material, locations);
             }
-
-            Bukkit.getLogger().info("Loaded " + existingChests.size() + " barrels");
         }
+        Bukkit.getLogger().info("Loaded " + existingChests.size() + " barrels");
     }
 
     private String serializeLocation(Location location) {

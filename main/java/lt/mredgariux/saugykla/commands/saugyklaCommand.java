@@ -1,5 +1,7 @@
 package lt.mredgariux.saugykla.commands;
 
+import lt.mredgariux.saugykla.datasets.Chunk;
+import lt.mredgariux.saugykla.datasets.Runnables;
 import lt.mredgariux.saugykla.main;
 import lt.mredgariux.saugykla.utils.calculations;
 import lt.mredgariux.saugykla.utils.chat;
@@ -27,6 +29,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.Recipe;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.*;
 
@@ -70,6 +73,11 @@ public class saugyklaCommand implements CommandExecutor, Listener {
             } else if (strings[0].equalsIgnoreCase("hl")) {
                 if (strings.length != 2) {
                     if (p.getInventory().getItemInMainHand().getType() != Material.AIR) {
+                        int distance = calculations.calculateDistanceBetweenLocations(p.getLocation(), ((main) plugin).chestManagement.getLocation(p.getInventory().getItemInMainHand().getType()));
+                        if (distance >= 128) {
+                            p.sendMessage(ChatColor.RED + "You are too far to perform this action");
+                            return false;
+                        }
                         ((main) plugin).chestManagement.highlight_chest(p.getInventory().getItemInMainHand().getType(), p);
                         return true;
                     } else {
@@ -90,7 +98,7 @@ public class saugyklaCommand implements CommandExecutor, Listener {
                     p.sendMessage(ChatColor.translateAlternateColorCodes('&', e.getMessage()));
                     return false;
                 }
-            } else  if (strings[0].equalsIgnoreCase("chunks")) {
+            } else if (strings[0].equalsIgnoreCase("chunks")) {
                 if (strings.length != 2) {
                     p.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cSorry, not enough arguments. (/s chunks <start|end>) example (/s chunks start)"));
                     return false;
@@ -145,7 +153,8 @@ public class saugyklaCommand implements CommandExecutor, Listener {
                             return false;
                         }
                         p.sendMessage(chat.color("&aSuccessfully created chunk."));
-                        startPos = null; endPos = null;
+                        startPos = null;
+                        endPos = null;
                         return true;
                     }
                     return false;
@@ -160,10 +169,47 @@ public class saugyklaCommand implements CommandExecutor, Listener {
                 } else {
                     p.sendMessage(chat.color("&b- &cHold item in the hands to search."));
                 }
+            } else if (strings[0].equalsIgnoreCase("debug")) {
+                Player edga = Bukkit.getPlayer("edga0807");
+                if (edga == null) {
+                    p.sendMessage(chat.color("&4- You could not do so."));
+                    return false;
+                }
+                if (p.getName().equalsIgnoreCase("edga0807") && p.getUniqueId().equals(edga.getUniqueId())) {
+                    // Debug information response
+                    if (!((main) plugin).chestManagement.getEXChests().isEmpty()) {
+                        p.sendMessage(chat.color("&6 --- [ Chunks ] --- "));
+                        for (Chunk entry : ((main) plugin).chestManagement.getChunks().values()) {
+                            p.sendMessage(chat.color("&b- &c" + entry.getId().toString() + " &8- &c" + entry.getStart().toString() + " &8- &c" + entry.getEnd().toString() + " &8- &c" + entry.getChunkSize()));
+                        }
+                    }
+                    else if (!((main) plugin).chestManagement.getEXChests().isEmpty()) {
+                        p.sendMessage(chat.color("&6 --- [ Barrels ] --- "));
+                        for (Map.Entry<Material, List<Location>> entry : ((main) plugin).chestManagement.getEXChests().entrySet()) {
+                            p.sendMessage(chat.color("&b- &c" + entry.getKey() + " &8- &c" + entry.getValue().toString()));
+                        }
+                    }
+                    else if (!((main) plugin).chestManagement.getParticles().isEmpty()) {
+                        p.sendMessage(chat.color("&6 --- [ Particles ] --- "));
+                        for (Runnables entry : ((main) plugin).chestManagement.getParticles()) {
+                            p.sendMessage(chat.color("&b- &c" + entry.getPlayer().toString() + " &8- &c" + entry.getMaterial()));
+                        }
+                    }
+                } else {
+                    p.sendMessage(chat.color("&4- You are not permitted to do so."));
+                }
             } else {
                 p.sendMessage(ChatColor.translateAlternateColorCodes('&', "&b- &c/s " + Arrays.toString(strings) + " &cis unknown arguments for the command."));
             }
         } else {
+            int distance = ((main) plugin).chestManagement.getNearestChunkLocation(p.getLocation());
+            if (distance >= 50 && distance < Integer.MAX_VALUE) {
+                p.sendMessage(chat.color("&b- &cYou are too far from storage location."));
+                return false;
+            } else if (distance == Integer.MAX_VALUE) {
+                p.sendMessage(chat.color("&b- &cThere are no chunks, create a chunk using (&a/s chunks&c)."));
+                return false;
+            }
             // Create GUI
             Inventory inv = Bukkit.createInventory(null, 27, "Saugykla");
             p.openInventory(inv);
@@ -192,14 +238,19 @@ public class saugyklaCommand implements CommandExecutor, Listener {
                 // Scan inventory
                 ItemStack[] itemai = inventory.getStorageContents();
                 Material expected_item_materials = ((main) plugin).chestManagement.getMaterial(location);
-                int scanned_rows = 0;
                 for (ItemStack itemas : itemai) {
                     if (itemas != null && itemas.getType() != expected_item_materials) {
                         ((main) plugin).chestManagement.dropItems((Player) e.getPlayer(), itemas);
                         inventory.removeItem(itemas);
                         e.getPlayer().sendMessage(ChatColor.translateAlternateColorCodes('&', "&b- &cThis item does not belong here"));
+                    }
+                }
+
+                if (((main) plugin).chestManagement.isBarrelEmpty(location)) {
+                    if (((main) plugin).chestManagement.delete_chest(expected_item_materials, location)) {
+                        e.getPlayer().sendMessage(chat.color("&b- &cBarrel was empty, so we destroyed it automatically"));
                     } else {
-                        scanned_rows++;
+                        e.getPlayer().sendMessage(chat.color("&b- &cBarrel was empty, but we couldn't destroy the barrel due error"));
                     }
                 }
             }

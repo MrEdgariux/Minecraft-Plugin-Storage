@@ -46,6 +46,10 @@ public class RecipeManagement {
         saveResources();
     }
 
+    public void refundItem(ItemStack item) {
+        materials.add(item);
+    }
+
     public boolean takeItem(Material itemas) {
         Iterator<ItemStack> iterator = materials.iterator();
         while (iterator.hasNext()) {
