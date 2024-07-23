@@ -46,7 +46,7 @@ public class RecipeManagement {
         saveResources();
     }
 
-    public boolean takeItem(Player requester, Material itemas) {
+    public boolean takeItem(Material itemas) {
         Iterator<ItemStack> iterator = materials.iterator();
         while (iterator.hasNext()) {
             ItemStack item = iterator.next();
@@ -88,7 +88,6 @@ public class RecipeManagement {
             // Save the config to the file
             File dataFile = new File(plugin.getDataFolder(), DATA_FILE_NAME);
             config.save(dataFile);
-            Bukkit.getLogger().info("[Resources] Saved data");
         } catch (IOException e) {
             Bukkit.getLogger().severe("[Resources] Failed to save resource data to file: " + e.getMessage());
         }
@@ -108,9 +107,9 @@ public class RecipeManagement {
         if (items != null) {
             for (Map<String, Object> itemData : items) {
                 ItemStack item = ItemStack.deserialize(itemData);
-                Bukkit.getLogger().info("[Resources] Loaded " + item.getType() + " (" + item.getAmount() + ")");
                 materials.add(item);
             }
         }
+        Bukkit.getLogger().info("Loaded " + materials.size() + " resources");
     }
 }

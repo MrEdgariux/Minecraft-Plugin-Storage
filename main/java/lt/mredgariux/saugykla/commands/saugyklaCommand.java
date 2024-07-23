@@ -161,7 +161,7 @@ public class saugyklaCommand implements CommandExecutor, Listener {
                     p.sendMessage(chat.color("&b- &cHold item in the hands to search."));
                 }
             } else {
-                p.sendMessage(ChatColor.translateAlternateColorCodes('&', "&b- &c/s " + strings[1] + " &cis unknown argument for the command."));
+                p.sendMessage(ChatColor.translateAlternateColorCodes('&', "&b- &c/s " + Arrays.toString(strings) + " &cis unknown arguments for the command."));
             }
         } else {
             // Create GUI
