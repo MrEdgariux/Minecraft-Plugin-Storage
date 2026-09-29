@@ -1,0 +1,11 @@
+.gradle/
+.gradle-user/
+.deps/
+.deps-expanded/
+build/
+out/
+.idea/
+*.iml
+*.ipr
+*.iws
+*.log
