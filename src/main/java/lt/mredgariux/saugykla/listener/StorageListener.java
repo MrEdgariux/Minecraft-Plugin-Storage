@@ -57,7 +57,9 @@ public final class StorageListener implements Listener {
         for (ItemStack item : inventory.getStorageContents()) {
             if (item != null && item.getType() != expectedMaterial) {
                 inventory.removeItem(item);
-                player.getWorld().dropItemNaturally(player.getLocation(), item);
+                player.getInventory().addItem(item).values()
+                        .forEach(leftover -> player.getWorld().dropItemNaturally(
+                                player.getLocation(), leftover));
                 player.sendMessage(Text.color("&b- &cThis item does not belong here."));
             }
         }

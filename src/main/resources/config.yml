@@ -1,5 +1,4 @@
 barrels:
-  max_height: 3 # Reserved for a future configurable stacking limit.
   delete_empty_barrels: true
   allow_item_mix: false
 

@@ -36,7 +36,6 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
 public final class StorageService {
-    private static final int STORAGE_Y = 10;
     private static final int HIGHLIGHT_DISTANCE = 128;
 
     private final JavaPlugin plugin;
@@ -179,12 +178,17 @@ public final class StorageService {
                 continue;
             }
 
-            Location location = containsMaterial(item.getType())
+            boolean existingMaterial = containsMaterial(item.getType());
+            Location location = existingMaterial
                     ? nextStackLocation(barrels.get(item.getType()))
                     : findNextAvailableLocation();
             if (location == null) {
-                returnToPlayer(player, remaining,
-                        "&b- &cNo storage region has enough space for another barrel &b(&a/s chunks&b)");
+                String message = existingMaterial
+                        ? "&b- &cNo more vertical space is available for &2" + item.getType()
+                                + "&c in its storage region."
+                        : "&b- &cNo horizontal space is available for a new item barrel "
+                                + "in any storage region &b(&a/s chunks&b)";
+                returnToPlayer(player, remaining, message);
                 continue;
             }
             if (!createBarrel(location, remaining, player)) {
@@ -250,7 +254,7 @@ public final class StorageService {
             block.setBlockData(barrelData);
             Barrel barrel = (Barrel) block.getState();
             Map<Integer, ItemStack> leftovers = barrel.getInventory().addItem(item);
-            leftovers.values().forEach(leftover -> drop(player, leftover));
+            leftovers.values().forEach(leftover -> returnToInventory(player, leftover));
             placeSign(signLocation.getBlock(), block, signMaterial, item.getType());
             return true;
         } catch (RuntimeException exception) {
@@ -286,7 +290,12 @@ public final class StorageService {
         Location top = locations.get(locations.size() - 1);
         Location above = top.clone().add(0, 1, 0);
         Location signLocation = above.clone().subtract(1, 0, 0);
-        return above.getBlock().getType().isAir() && signLocation.getBlock().getType().isAir() ? above : null;
+        boolean insideRegion = regions.values().stream()
+                .anyMatch(region -> contains(region, above));
+        return insideRegion
+                && above.getBlock().getType().isAir()
+                && signLocation.getBlock().getType().isAir()
+                ? above : null;
     }
 
     private Location findNextAvailableLocation() {
@@ -308,18 +317,32 @@ public final class StorageService {
         }
         int minX = Math.min(start.getBlockX(), end.getBlockX());
         int maxX = Math.max(start.getBlockX(), end.getBlockX());
+        int minY = Math.min(start.getBlockY(), end.getBlockY());
         int minZ = Math.min(start.getBlockZ(), end.getBlockZ());
         int maxZ = Math.max(start.getBlockZ(), end.getBlockZ());
         for (int x = minX; x <= maxX; x += 2) {
             for (int z = minZ; z <= maxZ; z++) {
-                Location barrelLocation = new Location(world, x, STORAGE_Y, z);
+                Location barrelLocation = new Location(world, x, minY, z);
                 Location signLocation = barrelLocation.clone().subtract(1, 0, 0);
-                if (barrelLocation.getBlock().getType().isAir() && signLocation.getBlock().getType().isAir()) {
+                if (barrelLocation.getBlock().getType().isAir()
+                        && signLocation.getBlock().getType().isAir()) {
                     return barrelLocation;
                 }
             }
         }
         return null;
+    }
+
+    private boolean contains(StorageRegion region, Location location) {
+        Location start = region.start();
+        Location end = region.end();
+        return Objects.equals(start.getWorld(), location.getWorld())
+                && location.getBlockX() >= Math.min(start.getBlockX(), end.getBlockX())
+                && location.getBlockX() <= Math.max(start.getBlockX(), end.getBlockX())
+                && location.getBlockY() >= Math.min(start.getBlockY(), end.getBlockY())
+                && location.getBlockY() <= Math.max(start.getBlockY(), end.getBlockY())
+                && location.getBlockZ() >= Math.min(start.getBlockZ(), end.getBlockZ())
+                && location.getBlockZ() <= Math.max(start.getBlockZ(), end.getBlockZ());
     }
 
     private void drawParticleTrail(Player player, Location destination) {
@@ -375,6 +398,13 @@ public final class StorageService {
     }
 
     private void removeBarrelBlocks(Location location) {
+        Block signBlock = location.clone().subtract(1, 0, 0).getBlock();
+        Material standingSign = SignMaterials.standingSignFor(signBlock.getType());
+        if (standingSign != null) {
+            signBlock.setType(Material.AIR);
+            resourceService.refund(standingSign);
+        }
+
         Block barrelBlock = location.getBlock();
         if (barrelBlock.getState() instanceof Barrel barrel) {
             for (ItemStack item : barrel.getInventory().getStorageContents()) {
@@ -388,20 +418,15 @@ public final class StorageService {
             barrelBlock.setType(Material.AIR);
             resourceService.refund(Material.BARREL);
         }
-        Block signBlock = location.clone().subtract(1, 0, 0).getBlock();
-        Material standingSign = SignMaterials.standingSignFor(signBlock.getType());
-        if (standingSign != null) {
-            signBlock.setType(Material.AIR);
-            resourceService.refund(standingSign);
-        }
     }
 
     private void returnToPlayer(Player player, ItemStack item, String message) {
-        drop(player, item);
+        returnToInventory(player, item);
         player.sendMessage(Text.color(message));
     }
 
-    private static void drop(Player player, ItemStack item) {
-        player.getWorld().dropItemNaturally(player.getLocation(), item);
+    private static void returnToInventory(Player player, ItemStack item) {
+        player.getInventory().addItem(item).values()
+                .forEach(leftover -> player.getWorld().dropItemNaturally(player.getLocation(), leftover));
     }
 }
