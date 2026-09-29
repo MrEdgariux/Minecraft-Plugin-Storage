@@ -1,0 +1,28 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
+      - name: Build and test
+        run: ./gradlew clean build
+      - name: Upload plugin JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: Saugykla
+          path: build/libs/Saugykla-*.jar

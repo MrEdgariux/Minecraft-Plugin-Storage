@@ -1,0 +1,17 @@
+name: Saugykla
+version: '${version}'
+main: lt.mredgariux.saugykla.SaugyklaPlugin
+api-version: '1.21'
+description: Organizes deposited items into labelled storage barrels.
+commands:
+  saugykla:
+    description: Opens and manages the storage system.
+    aliases: [s]
+    usage: /<command> [r|hl|chunks|s|reset|debug]
+permissions:
+  saugykla.reset:
+    description: Allows resetting storage and region data.
+    default: op
+  saugykla.chunks:
+    description: Allows creating storage regions.
+    default: op
