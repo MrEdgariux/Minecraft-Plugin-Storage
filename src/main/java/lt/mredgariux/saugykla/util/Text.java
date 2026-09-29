@@ -1,8 +1,11 @@
-package lt.mredgariux.saugykla.utils;
+package lt.mredgariux.saugykla.util;
 
 import org.bukkit.ChatColor;
 
-public class chat {
+public final class Text {
+    private Text() {
+    }
+
     public static String color(String text) {
         return ChatColor.translateAlternateColorCodes('&', text);
     }
