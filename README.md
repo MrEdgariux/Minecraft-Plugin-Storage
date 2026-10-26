@@ -56,7 +56,7 @@ On Windows:
 gradlew.bat clean build
 ```
 
-The plugin JAR is generated at `build/libs/Saugykla-1.0.0.jar`. Paper is a
+The plugin JAR is generated at `build/libs/Saugykla-1.4.0.jar`. Paper is a
 `compileOnly` dependency and is not bundled into the plugin. The configured build
 toolchain is JDK 21; Gradle intentionally emits Java 17-compatible class files. The
 `build` task also compiles the source against representative Paper 1.20.6,
@@ -64,7 +64,7 @@ toolchain is JDK 21; Gradle intentionally emits Java 17-compatible class files. 
 
 ## Installation
 
-1. Copy `build/libs/Saugykla-1.0.0.jar` into the server's `plugins` directory.
+1. Copy `build/libs/Saugykla-1.4.0.jar` into the server's `plugins` directory.
 2. Start the Paper server once to generate `plugins/Saugykla/config.yml`.
 3. As an operator, select a storage region with `/s chunks start` and
    `/s chunks end` while looking at its corner blocks.

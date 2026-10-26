@@ -22,7 +22,7 @@ jobs:
       - name: Build and run API compatibility checks
         run: ./gradlew clean build
       - name: Verify Java 17 bytecode
-        run: javap -verbose -classpath build/libs/Saugykla-1.0.0.jar lt.mredgariux.saugykla.SaugyklaPlugin | grep 'major version: 61'
+        run: javap -verbose -classpath build/libs/Saugykla-1.4.0.jar lt.mredgariux.saugykla.SaugyklaPlugin | grep 'major version: 61'
       - name: Upload plugin JAR
         uses: actions/upload-artifact@v4
         with:
