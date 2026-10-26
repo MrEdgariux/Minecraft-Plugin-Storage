@@ -21,10 +21,10 @@ jobs:
         uses: gradle/actions/wrapper-validation@v4
       - name: Build and run API compatibility checks
         run: ./gradlew clean build
-      - name: Verify Java 17 bytecode
-        run: javap -verbose -classpath build/libs/Saugykla-1.0.0.jar lt.mredgariux.saugykla.SaugyklaPlugin | grep 'major version: 61'
+      - name: Verify Java 21 bytecode
+        run: javap -verbose -classpath build/libs/Saugykla-1.4.1.jar lt.mredgariux.saugykla.SaugyklaPlugin | grep 'major version: 65'
       - name: Upload plugin JAR
         uses: actions/upload-artifact@v4
         with:
           name: Saugykla
-          path: build/libs/Saugykla-*.jar
+          path: build/libs/Saugykla-1.4.1.jar

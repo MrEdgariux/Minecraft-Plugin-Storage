@@ -7,20 +7,19 @@ Minecraft/Paper 1.20.x and 1.21.x.
 ## Requirements
 
 - A Paper server in the Minecraft 1.20.x or 1.21.x family
-- The Java runtime required by that Paper release (Java 21 is recommended for
-  currently maintained Paper 1.20.x and 1.21.x servers)
+- Java 21 (required by Saugykla 1.4.1 and its bundled CoreMessages library)
 
-The plugin is compiled against Paper API 1.20.1 and emits Java 17 bytecode. It
+The plugin is compiled against Paper API 1.20.1 and emits Java 21 bytecode. It
 does not use NMS, CraftBukkit internals, reflection, or version-specific server
-packages. This allows the same JAR to load on both Java 17-era servers and newer
-servers that run on Java 21.
+packages. Use Java 21 even with older Paper 1.20.x servers. The previous
+`Saugykla-1.4.0.jar` remains the Java 17-bytecode artifact.
 
 ## Compatibility
 
 | Minecraft / Paper | Verification | Java runtime |
 | --- | --- | --- |
-| 1.20.1 | Runtime-tested on Paper build 196 | 21 tested; plugin bytecode also supports 17 |
-| 1.20.2-1.20.5 | Expected compatible from the tested 1.20.1/1.20.6 endpoints; not runtime-tested | Use the version required by the server build |
+| 1.20.1 | Runtime-tested on Paper build 196 before the CoreMessages integration | 21 |
+| 1.20.2-1.20.5 | Expected compatible from the tested 1.20.1/1.20.6 endpoints; not runtime-tested | 21 |
 | 1.20.6 | Runtime-tested on Paper build 151 | 21 |
 | 1.21-1.21.1 | Runtime-tested on Paper 1.21.1 build 133 | 21 |
 | 1.21.2-1.21.10 | Expected compatible from the tested 1.21.1/1.21.11 endpoints; not runtime-tested | 21 |
@@ -32,7 +31,8 @@ families. The table distinguishes API build verification from actual server
 runtime testing; intermediate versions are supported based on the common 1.20.1
 API baseline but are not claimed as individually runtime-verified.
 
-Runtime smoke tests used Oracle JDK 21.0.12 on Windows. On all four tested Paper
+The runtime smoke tests above predate version 1.4.1 and used Oracle JDK 21.0.12
+on Windows. On all four tested Paper
 versions, the plugin loaded and enabled without plugin exceptions, registered its
 listener and command executor during startup, generated `config.yml`, initialized
 the YAML repositories, and disabled cleanly. Paper 1.21.11 additionally verified
@@ -41,6 +41,15 @@ The plugin has no custom recipes to register. Player-driven region selection,
 inventory interaction, barrel placement, highlighting, and migration of real
 production data still require in-game testing and are not claimed as automated
 runtime coverage.
+
+Version 1.4.1 compiles against the same four Paper APIs and tests the real
+CoreMessages translation and chat APIs using the Paper 1.20.1 runtime classpath.
+These tests cover language-file creation, fallback, legacy translation migration,
+placeholder substitution, preserved edits, and player/console component delivery.
+The shaded 1.4.1 JAR was also smoke-tested on Paper 1.20.1 build 196 with Java
+21.0.12: startup, English language-file creation, and the console response to
+`/s` succeeded. The 1.4.1 integration has not yet been runtime-tested on later
+server versions or with in-game players.
 
 ## Build
 
@@ -56,15 +65,22 @@ On Windows:
 gradlew.bat clean build
 ```
 
-The plugin JAR is generated at `build/libs/Saugykla-1.0.0.jar`. Paper is a
-`compileOnly` dependency and is not bundled into the plugin. The configured build
-toolchain is JDK 21; Gradle intentionally emits Java 17-compatible class files. The
+The server plugin JAR is generated at `build/libs/Saugykla-1.4.1.jar`. Install
+this shaded JAR, not the `-plain.jar` development artifact. Paper and Adventure
+are supplied by the server and are not bundled. CoreMessages 1.0.2 is downloaded
+from JitPack, bundled, and relocated into a private package to avoid conflicts
+with other plugins. The build toolchain and bytecode target are JDK 21. The
 `build` task also compiles the source against representative Paper 1.20.6,
 1.21.1, and 1.21.11 APIs.
 
+To keep previous JARs in `build/libs`, use `./gradlew build` (Windows:
+`gradlew.bat build`) without `clean`. The existing 1.4.0 JAR was preserved when
+building 1.4.1.
+
 ## Installation
 
-1. Copy `build/libs/Saugykla-1.0.0.jar` into the server's `plugins` directory.
+1. Copy `build/libs/Saugykla-1.4.1.jar` into the server's `plugins` directory.
+   Keep only one Saugykla version installed on the server; retain old JARs elsewhere.
 2. Start the Paper server once to generate `plugins/Saugykla/config.yml`.
 3. As an operator, select a storage region with `/s chunks start` and
    `/s chunks end` while looking at its corner blocks.
@@ -78,6 +94,30 @@ automatically migrated when `chests_v2.yml` is absent.
 No compatibility migration is required when moving the same plugin data between
 supported server versions. Always back up plugin and world data before changing
 the Minecraft server version.
+
+## Translations
+
+All chat messages, including command errors, resource/storage failures, highlight
+notifications, and debug output, use
+[CoreMessages](https://github.com/MrEdgariux/CoreMessages). It is bundled into
+Saugykla; no extra server plugin is required.
+
+On first startup, `plugins/Saugykla/langs/en.yml` is created. Edit its values to
+translate the plugin. Placeholders `%0%`, `%1%`, etc. insert values such as a
+material name or region size. Legacy `&` colors and hex colors are supported.
+Restart the server after editing translations.
+
+For another language, copy `en.yml` to e.g. `lt.yml`, translate it, and set
+`language: lt` in `config.yml`. Missing keys fall back to English; missing or
+invalid selected languages also fall back to English with a console warning.
+CoreMessages fills in new default keys without overwriting existing edits.
+
+Matching legacy `config.yml` `translations` entries are copied into `langs/en.yml`
+only when that file does not yet exist, converting `%s` to `%0%` for the resource
+message. Existing config values are retained for reference. Obsolete entries
+without a matching current message are not migrated. From then on, edit the
+language files rather than the old config section. Inventory titles and server
+diagnostic logs are separate from chat translations.
 
 ## Commands and permissions
 

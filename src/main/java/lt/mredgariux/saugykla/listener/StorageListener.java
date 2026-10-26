@@ -3,7 +3,8 @@ package lt.mredgariux.saugykla.listener;
 import lt.mredgariux.saugykla.command.SaugyklaCommand;
 import lt.mredgariux.saugykla.service.ResourceService;
 import lt.mredgariux.saugykla.service.StorageService;
-import lt.mredgariux.saugykla.util.Text;
+import lt.mredgariux.saugykla.message.MessageKey;
+import lt.mredgariux.saugykla.message.Messages;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Barrel;
@@ -17,10 +18,12 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 public final class StorageListener implements Listener {
+    private final Messages messages;
     private final StorageService storageService;
     private final ResourceService resourceService;
 
-    public StorageListener(StorageService storageService, ResourceService resourceService) {
+    public StorageListener(StorageService storageService, ResourceService resourceService, Messages messages) {
+        this.messages = messages;
         this.storageService = storageService;
         this.resourceService = resourceService;
     }
@@ -60,13 +63,12 @@ public final class StorageListener implements Listener {
                 player.getInventory().addItem(item).values()
                         .forEach(leftover -> player.getWorld().dropItemNaturally(
                                 player.getLocation(), leftover));
-                player.sendMessage(Text.color("&b- &cThis item does not belong here."));
+                messages.send(player, MessageKey.BARREL_WRONG_ITEM);
             }
         }
         if (storageService.isBarrelEmpty(location)) {
-            player.sendMessage(storageService.deleteBarrel(expectedMaterial, location)
-                    ? Text.color("&b- &cBarrel was empty, so it was destroyed automatically.")
-                    : Text.color("&b- &cThe empty barrel could not be destroyed."));
+            messages.send(player, storageService.deleteBarrel(expectedMaterial, location)
+                    ? MessageKey.BARREL_EMPTY_REMOVED : MessageKey.BARREL_REMOVE_FAILED);
         }
     }
 
@@ -79,7 +81,7 @@ public final class StorageListener implements Listener {
         Material material = storageService.materialAt(block.getLocation());
         if (storageService.deleteBarrel(material, block.getLocation())) {
             event.setDropItems(false);
-            event.getPlayer().sendMessage(Text.color("&b- &cSuccessfully destroyed storage."));
+            messages.send(event.getPlayer(), MessageKey.BARREL_REMOVED);
         }
     }
 }

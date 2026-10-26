@@ -17,7 +17,8 @@ import lt.mredgariux.saugykla.persistence.StorageRepository;
 import lt.mredgariux.saugykla.util.Geometry;
 import lt.mredgariux.saugykla.util.SignMaterials;
 import lt.mredgariux.saugykla.util.SignText;
-import lt.mredgariux.saugykla.util.Text;
+import lt.mredgariux.saugykla.message.MessageKey;
+import lt.mredgariux.saugykla.message.Messages;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
@@ -36,6 +37,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
 public final class StorageService {
+    private final Messages messages;
     private static final int HIGHLIGHT_DISTANCE = 128;
 
     private final JavaPlugin plugin;
@@ -47,7 +49,8 @@ public final class StorageService {
     private final List<HighlightSession> highlights = new ArrayList<>();
 
     public StorageService(JavaPlugin plugin, ResourceService resourceService,
-                          StorageRepository storageRepository, RegionRepository regionRepository) {
+                          StorageRepository storageRepository, RegionRepository regionRepository, Messages messages) {
+        this.messages = messages;
         this.plugin = plugin;
         this.resourceService = resourceService;
         this.storageRepository = storageRepository;
@@ -113,7 +116,7 @@ public final class StorageService {
     public void toggleHighlight(Material material, Player player) {
         List<Location> locations = barrels.get(material);
         if (locations == null || locations.isEmpty()) {
-            player.sendMessage(Text.color("&b- &cYou're not storing this item anywhere"));
+            messages.send(player, MessageKey.ITEM_NOT_STORED);
             return;
         }
 
@@ -124,7 +127,7 @@ public final class StorageService {
                     && session.material() == material) {
                 session.task().cancel();
                 iterator.remove();
-                player.sendMessage(Text.color("&b- &cPath to the &2" + material + "&c hidden"));
+                messages.send(player, MessageKey.HIGHLIGHT_HIDDEN, material);
                 return;
             }
         }
@@ -133,7 +136,7 @@ public final class StorageService {
         BukkitTask task = plugin.getServer().getScheduler().runTaskTimer(
                 plugin, () -> drawParticleTrail(player, destination), 0L, 2L);
         highlights.add(new HighlightSession(player, material, destination, task));
-        player.sendMessage(Text.color("&b- &aShowing path to the &2" + material));
+        messages.send(player, MessageKey.HIGHLIGHT_SHOWN, material);
     }
 
     public void stopHighlights() {
@@ -183,12 +186,9 @@ public final class StorageService {
                     ? nextStackLocation(barrels.get(item.getType()))
                     : findNextAvailableLocation();
             if (location == null) {
-                String message = existingMaterial
-                        ? "&b- &cNo more vertical space is available for &2" + item.getType()
-                                + "&c in its storage region."
-                        : "&b- &cNo horizontal space is available for a new item barrel "
-                                + "in any storage region &b(&a/s chunks&b)";
-                returnToPlayer(player, remaining, message);
+                MessageKey message = existingMaterial
+                        ? MessageKey.STORAGE_VERTICAL_FULL : MessageKey.STORAGE_HORIZONTAL_FULL;
+                returnToPlayer(player, remaining, message, item.getType());
                 continue;
             }
             if (!createBarrel(location, remaining, player)) {
@@ -232,17 +232,17 @@ public final class StorageService {
     private boolean createBarrel(Location location, ItemStack item, Player player) {
         Location signLocation = location.clone().subtract(1, 0, 0);
         if (!location.getBlock().getType().isAir() || !signLocation.getBlock().getType().isAir()) {
-            returnToPlayer(player, item, "&cA block is preventing placement of a storage barrel.");
+            returnToPlayer(player, item, MessageKey.PLACEMENT_BLOCKED);
             return false;
         }
         if (!resourceService.takeOne(Material.BARREL)) {
-            returnToPlayer(player, item, "&b- &cAdd barrels &b(&a/s r&b)");
+            returnToPlayer(player, item, MessageKey.BARRELS_REQUIRED);
             return false;
         }
         Material signMaterial = resourceService.takeAnySign();
         if (signMaterial == null) {
             resourceService.refund(Material.BARREL);
-            returnToPlayer(player, item, "&b- &cAdd signs &b(&a/s r&b)");
+            returnToPlayer(player, item, MessageKey.SIGNS_REQUIRED);
             return false;
         }
 
@@ -264,7 +264,7 @@ public final class StorageService {
             signLocation.getBlock().setType(Material.AIR);
             resourceService.refund(Material.BARREL);
             resourceService.refund(signMaterial);
-            returnToPlayer(player, item, "&cThe storage barrel could not be created.");
+            returnToPlayer(player, item, MessageKey.BARREL_CREATE_FAILED);
             return false;
         }
     }
@@ -349,7 +349,7 @@ public final class StorageService {
         if (!player.isOnline() || Geometry.horizontalDistance(player.getLocation(), destination) >= HIGHLIGHT_DISTANCE) {
             cancelHighlight(player.getUniqueId(), destination);
             if (player.isOnline()) {
-                player.sendMessage(Text.color("&cYou ran too far, so the path was hidden automatically."));
+                messages.send(player, MessageKey.HIGHLIGHT_EXPIRED);
             }
             return;
         }
@@ -377,8 +377,7 @@ public final class StorageService {
             HighlightSession session = iterator.next();
             if (session.material() == material) {
                 session.task().cancel();
-                session.player().sendMessage(Text.color(
-                        "&b- &cThe barrel you were navigating to was destroyed by another player"));
+                messages.send(session.player(), MessageKey.HIGHLIGHT_BARREL_REMOVED);
                 iterator.remove();
             }
         }
@@ -420,9 +419,9 @@ public final class StorageService {
         }
     }
 
-    private void returnToPlayer(Player player, ItemStack item, String message) {
+    private void returnToPlayer(Player player, ItemStack item, MessageKey message, Object... arguments) {
         returnToInventory(player, item);
-        player.sendMessage(Text.color(message));
+        messages.send(player, message, arguments);
     }
 
     private static void returnToInventory(Player player, ItemStack item) {

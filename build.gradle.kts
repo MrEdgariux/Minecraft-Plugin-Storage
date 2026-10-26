@@ -1,20 +1,29 @@
 plugins {
     java
+    id("com.gradleup.shadow") version "8.3.9"
 }
 
 group = "lt.mredgariux"
-version = "1.0.0"
+version = "1.4.1"
 
 repositories {
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
+    maven("https://jitpack.io") {
+        content { includeGroup("com.github.MrEdgariux") }
+    }
 }
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.20.1-R0.1-SNAPSHOT")
+    implementation("com.github.MrEdgariux:CoreMessages:1.0.2") {
+        isTransitive = false // Paper/Adventure are supplied by the server, not bundled.
+    }
 
     testImplementation(platform("org.junit:junit-bom:5.11.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
+    testImplementation("org.mockito:mockito-core:5.14.2")
+    testImplementation("io.papermc.paper:paper-api:1.20.1-R0.1-SNAPSHOT")
 }
 
 java {
@@ -23,7 +32,7 @@ java {
 
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
-    options.release = 17
+    options.release = 21
 }
 
 val compatibilityApiVersions = mapOf(
@@ -40,10 +49,10 @@ val compatibilityChecks = compatibilityApiVersions.map { (taskSuffix, apiVersion
         description = "Compiles the plugin against Paper API $apiVersion."
         group = LifecycleBasePlugin.VERIFICATION_GROUP
         source = sourceSets.main.get().java
-        classpath = apiClasspath
+        classpath = apiClasspath + configurations.runtimeClasspath.get()
         destinationDirectory = layout.buildDirectory.dir("compatibility/$taskSuffix")
         options.encoding = "UTF-8"
-        options.release = 17
+        options.release = 21
     }
 }
 
@@ -63,7 +72,20 @@ tasks.check {
 }
 
 tasks.jar {
+    archiveClassifier = "plain"
     archiveBaseName = "Saugykla"
     isPreserveFileTimestamps = false
     isReproducibleFileOrder = true
+}
+
+tasks.shadowJar {
+    archiveBaseName = "Saugykla"
+    archiveClassifier = ""
+    relocate("lt.mredgariux.messages", "lt.mredgariux.saugykla.libs.messages")
+    isPreserveFileTimestamps = false
+    isReproducibleFileOrder = true
+}
+
+tasks.build {
+    dependsOn(tasks.shadowJar)
 }

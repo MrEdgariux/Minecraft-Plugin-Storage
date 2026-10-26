@@ -1,0 +1,69 @@
+# Edit these messages in plugins/Saugykla/langs/en.yml.
+# %0%, %1%, ... are positional arguments supplied by the plugin.
+command:
+  console: '&cYou cannot do that!'
+  unknown-arguments: '&b- &c/s %0% &cis unknown arguments for the command.'
+
+storage:
+  no-regions: '&b- &cThere are no chunks, create a chunk using (&a/s chunks&c).'
+  too-far: '&b- &cYou are too far from storage location.'
+  vertical-full: '&b- &cNo more vertical space is available for &2%0%&c in its storage region.'
+  horizontal-full: '&b- &cNo horizontal space is available for a new item barrel in any storage region &b(&a/s chunks&b)'
+  placement-blocked: '&cA block is preventing placement of a storage barrel.'
+  create-failed: '&cThe storage barrel could not be created.'
+
+reset:
+  no-permission: '&cNo permission to reset storage.'
+  success: '&aStorage data reset successfully.'
+  failed: '&cStorage data could not be reset; check the server log.'
+
+item:
+  unknown: '&cUnknown item.'
+  not-stored: '&b- &cYou''re not storing this item anywhere'
+
+highlight:
+  hold-item: '&cHold an item or use /s hl <material>, for example /s hl raw_iron.'
+  usage: '&cUsage: /s hl <material>'
+  too-far: '&cYou are too far to perform this action.'
+  hidden: '&b- &cPath to the &2%0%&c hidden'
+  shown: '&b- &aShowing path to the &2%0%'
+  expired: '&cYou ran too far, so the path was hidden automatically.'
+  barrel-removed: '&b- &cThe barrel you were navigating to was destroyed by another player'
+
+region:
+  no-permission: '&cNo permission to create storage regions.'
+  usage: '&cUsage: /s chunks <start|end>'
+  look-at-block: '&cLook at a block to select a region point.'
+  start-selected: '&aSuccessfully selected the start point.'
+  start-required: '&cSelect the start point first.'
+  world-mismatch: '&cStart and end points must be in the same world.'
+  too-large: '&cThe storage region is too large (maximum %0% blocks).'
+  too-small: '&cThe storage region is too small (minimum %0% blocks).'
+  created: '&aSuccessfully created the storage region.'
+  create-failed: '&cThe region overlaps another region or could not be saved.'
+
+search:
+  hold-item: '&b- &cHold an item in your hand to search.'
+  found: '&b- &aThis item exists in the barrels somewhere.'
+  not-found: '&b- &cThis item isn''t anywhere in the barrels.'
+
+debug:
+  no-permission: '&4- You are not permitted to do so.'
+  regions: '&6 --- [ Regions ] --- '
+  region: '&b- &c%0% &8- &c%1% &8- &c%2% &8- &c%3%'
+  barrels: '&6 --- [ Barrels ] --- '
+  barrel: '&b- &c%0% &8- &c%1%'
+  highlights: '&6 --- [ Highlights ] --- '
+  highlight: '&b- &c%0% &8- &c%1%'
+
+resources:
+  not-allowed: '&b- &c%0% isn''t an allowed resource.'
+  saved: '&b- &aResources saved!'
+  barrels-required: '&b- &cAdd barrels &b(&a/s r&b)'
+  signs-required: '&b- &cAdd signs &b(&a/s r&b)'
+
+barrel:
+  wrong-item: '&b- &cThis item does not belong here.'
+  empty-removed: '&b- &cBarrel was empty, so it was destroyed automatically.'
+  remove-failed: '&b- &cThe empty barrel could not be destroyed.'
+  removed: '&b- &cSuccessfully destroyed storage.'

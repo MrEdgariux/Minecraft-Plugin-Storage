@@ -5,18 +5,21 @@ import java.util.Iterator;
 import java.util.List;
 import lt.mredgariux.saugykla.persistence.ResourceRepository;
 import lt.mredgariux.saugykla.util.SignMaterials;
-import lt.mredgariux.saugykla.util.Text;
+import lt.mredgariux.saugykla.message.MessageKey;
+import lt.mredgariux.saugykla.message.Messages;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class ResourceService {
+    private final Messages messages;
     private final JavaPlugin plugin;
     private final ResourceRepository repository;
     private final List<ItemStack> resources;
 
-    public ResourceService(JavaPlugin plugin, ResourceRepository repository) {
+    public ResourceService(JavaPlugin plugin, ResourceRepository repository, Messages messages) {
+        this.messages = messages;
         this.plugin = plugin;
         this.repository = repository;
         resources = repository.load();
@@ -38,7 +41,7 @@ public final class ResourceService {
                 item.setType(Material.BARREL);
             }
             if (item.getType() != Material.BARREL && !SignMaterials.isStandingSign(item.getType())) {
-                player.sendMessage(Text.color("&b- &c" + item.getType() + " isn't an allowed resource."));
+                messages.send(player, MessageKey.RESOURCE_NOT_ALLOWED, item.getType());
                 player.getInventory().addItem(item).values()
                         .forEach(leftover -> player.getWorld().dropItemNaturally(player.getLocation(), leftover));
                 continue;
@@ -46,7 +49,7 @@ public final class ResourceService {
             resources.add(item);
         }
         repository.save(resources);
-        player.sendMessage(Text.color("&b- &aResources saved!"));
+        messages.send(player, MessageKey.RESOURCES_SAVED);
     }
 
     public boolean takeOne(Material material) {
