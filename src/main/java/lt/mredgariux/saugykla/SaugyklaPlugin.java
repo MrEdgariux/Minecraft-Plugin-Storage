@@ -1,6 +1,7 @@
 package lt.mredgariux.saugykla;
 
 import java.util.Objects;
+import lt.mredgariux.saugykla.message.Messages;
 import lt.mredgariux.saugykla.command.SaugyklaCommand;
 import lt.mredgariux.saugykla.command.SaugyklaTabCompleter;
 import lt.mredgariux.saugykla.listener.StorageListener;
@@ -18,21 +19,22 @@ public final class SaugyklaPlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        Messages messages = new Messages(this);
 
-        ResourceService resourceService = new ResourceService(this, new ResourceRepository(this));
+        ResourceService resourceService = new ResourceService(this, new ResourceRepository(this), messages);
         storageService = new StorageService(
                 this,
                 resourceService,
                 new StorageRepository(this),
-                new RegionRepository(this));
+                new RegionRepository(this), messages);
 
-        SaugyklaCommand commandHandler = new SaugyklaCommand(this, storageService, resourceService);
+        SaugyklaCommand commandHandler = new SaugyklaCommand(this, storageService, resourceService, messages);
         PluginCommand command = Objects.requireNonNull(
                 getCommand("saugykla"), "Command 'saugykla' is missing from plugin.yml");
         command.setExecutor(commandHandler);
         command.setTabCompleter(new SaugyklaTabCompleter());
         getServer().getPluginManager().registerEvents(
-                new StorageListener(storageService, resourceService), this);
+                new StorageListener(storageService, resourceService, messages), this);
 
         getLogger().info("Saugykla enabled.");
     }

@@ -12,7 +12,8 @@ import lt.mredgariux.saugykla.model.StorageRegion;
 import lt.mredgariux.saugykla.service.ResourceService;
 import lt.mredgariux.saugykla.service.StorageService;
 import lt.mredgariux.saugykla.util.Geometry;
-import lt.mredgariux.saugykla.util.Text;
+import lt.mredgariux.saugykla.message.MessageKey;
+import lt.mredgariux.saugykla.message.Messages;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -26,6 +27,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class SaugyklaCommand implements CommandExecutor {
+    private final Messages messages;
     public static final String STORAGE_GUI_TITLE = "Saugykla";
     public static final String RESOURCES_GUI_TITLE = "Resources";
 
@@ -35,7 +37,8 @@ public final class SaugyklaCommand implements CommandExecutor {
     private final Map<UUID, RegionSelection> selections = new HashMap<>();
 
     public SaugyklaCommand(JavaPlugin plugin, StorageService storageService,
-                           ResourceService resourceService) {
+                           ResourceService resourceService, Messages messages) {
+        this.messages = messages;
         this.plugin = plugin;
         this.storageService = storageService;
         this.resourceService = resourceService;
@@ -44,8 +47,7 @@ public final class SaugyklaCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(Text.color(plugin.getConfig().getString(
-                    "translations.console", "&cYou cannot do that!")));
+            messages.send(sender, MessageKey.CONSOLE);
             return true;
         }
         if (args.length == 0) {
@@ -60,8 +62,7 @@ public final class SaugyklaCommand implements CommandExecutor {
             case "chunks" -> selectRegion(player, args);
             case "s" -> search(player);
             case "debug" -> debug(player);
-            default -> player.sendMessage(Text.color(
-                    "&b- &c/s " + Arrays.toString(args) + " &cis unknown arguments for the command."));
+            default -> messages.send(player, MessageKey.UNKNOWN_ARGUMENTS, Arrays.toString(args));
         }
         return true;
     }
@@ -69,11 +70,11 @@ public final class SaugyklaCommand implements CommandExecutor {
     private void openStorage(Player player) {
         int distance = storageService.nearestRegionDistance(player.getLocation());
         if (distance == Integer.MAX_VALUE) {
-            player.sendMessage(Text.color("&b- &cThere are no chunks, create a chunk using (&a/s chunks&c)."));
+            messages.send(player, MessageKey.NO_REGIONS);
             return;
         }
         if (distance >= 50) {
-            player.sendMessage(Text.color("&b- &cYou are too far from storage location."));
+            messages.send(player, MessageKey.STORAGE_TOO_FAR);
             return;
         }
         player.openInventory(Bukkit.createInventory(null, 27, STORAGE_GUI_TITLE));
@@ -90,12 +91,10 @@ public final class SaugyklaCommand implements CommandExecutor {
 
     private void reset(Player player) {
         if (!player.hasPermission("saugykla.reset")) {
-            player.sendMessage(Text.color("&cNo permission to reset storage."));
+            messages.send(player, MessageKey.RESET_NO_PERMISSION);
             return;
         }
-        player.sendMessage(storageService.reset()
-                ? Text.color("&aStorage data reset successfully.")
-                : Text.color("&cStorage data could not be reset; check the server log."));
+        messages.send(player, storageService.reset() ? MessageKey.RESET_SUCCESS : MessageKey.RESET_FAILED);
     }
 
     private void highlight(Player player, String[] args) {
@@ -103,28 +102,27 @@ public final class SaugyklaCommand implements CommandExecutor {
         if (args.length == 2) {
             material = Material.matchMaterial(args[1]);
             if (material == null) {
-                player.sendMessage(Text.color("&cUnknown item."));
+                messages.send(player, MessageKey.UNKNOWN_ITEM);
                 return;
             }
         } else if (args.length == 1) {
             material = player.getInventory().getItemInMainHand().getType();
             if (material.isAir()) {
-                player.sendMessage(Text.color(
-                        "&cHold an item or use /s hl <material>, for example /s hl raw_iron."));
+                messages.send(player, MessageKey.HIGHLIGHT_HOLD_ITEM);
                 return;
             }
         } else {
-            player.sendMessage(Text.color("&cUsage: /s hl <material>"));
+            messages.send(player, MessageKey.HIGHLIGHT_USAGE);
             return;
         }
 
         Location destination = storageService.locationFor(material);
         if (destination == null) {
-            player.sendMessage(Text.color("&b- &cYou're not storing this item anywhere"));
+            messages.send(player, MessageKey.ITEM_NOT_STORED);
             return;
         }
         if (Geometry.horizontalDistance(player.getLocation(), destination) >= 128) {
-            player.sendMessage(Text.color("&cYou are too far to perform this action."));
+            messages.send(player, MessageKey.HIGHLIGHT_TOO_FAR);
             return;
         }
         storageService.toggleHighlight(material, player);
@@ -132,16 +130,16 @@ public final class SaugyklaCommand implements CommandExecutor {
 
     private void selectRegion(Player player, String[] args) {
         if (!player.hasPermission("saugykla.chunks")) {
-            player.sendMessage(Text.color("&cNo permission to create storage regions."));
+            messages.send(player, MessageKey.REGION_NO_PERMISSION);
             return;
         }
         if (args.length != 2) {
-            player.sendMessage(Text.color("&cUsage: /s chunks <start|end>"));
+            messages.send(player, MessageKey.REGION_USAGE);
             return;
         }
         Block target = player.getTargetBlockExact(5);
         if (target == null || target.getType().isAir()) {
-            player.sendMessage(Text.color("&cLook at a block to select a region point."));
+            messages.send(player, MessageKey.REGION_LOOK_AT_BLOCK);
             return;
         }
 
@@ -149,68 +147,63 @@ public final class SaugyklaCommand implements CommandExecutor {
                 player.getUniqueId(), ignored -> new RegionSelection());
         if (args[1].equalsIgnoreCase("start")) {
             selection.setStart(target.getLocation());
-            player.sendMessage(Text.color("&aSuccessfully selected the start point."));
+            messages.send(player, MessageKey.REGION_START_SELECTED);
             return;
         }
         if (!args[1].equalsIgnoreCase("end")) {
-            player.sendMessage(Text.color("&cUsage: /s chunks <start|end>"));
+            messages.send(player, MessageKey.REGION_USAGE);
             return;
         }
 
         Location start = selection.start();
         Location end = target.getLocation();
         if (start == null) {
-            player.sendMessage(Text.color("&cSelect the start point first."));
+            messages.send(player, MessageKey.REGION_START_REQUIRED);
             return;
         }
         if (!Objects.equals(start.getWorld(), end.getWorld())) {
             selections.remove(player.getUniqueId());
-            player.sendMessage(Text.color("&cStart and end points must be in the same world."));
+            messages.send(player, MessageKey.REGION_WORLD_MISMATCH);
             return;
         }
         int size = Geometry.area(start, end);
         int maximumSize = plugin.getConfig().getInt("chunks.max_size", 512);
         if (size > maximumSize || size < 3) {
             selections.remove(player.getUniqueId());
-            player.sendMessage(Text.color(size > maximumSize
-                    ? "&cThe storage region is too large (maximum " + maximumSize + " blocks)."
-                    : "&cThe storage region is too small (minimum 3 blocks)."));
+            messages.send(player, size > maximumSize ? MessageKey.REGION_TOO_LARGE : MessageKey.REGION_TOO_SMALL,
+                    size > maximumSize ? maximumSize : 3);
             return;
         }
         selections.remove(player.getUniqueId());
-        player.sendMessage(storageService.createRegion(start, end)
-                ? Text.color("&aSuccessfully created the storage region.")
-                : Text.color("&cThe region overlaps another region or could not be saved."));
+        messages.send(player, storageService.createRegion(start, end)
+                ? MessageKey.REGION_CREATED : MessageKey.REGION_CREATE_FAILED);
     }
 
     private void search(Player player) {
         Material material = player.getInventory().getItemInMainHand().getType();
         if (material.isAir()) {
-            player.sendMessage(Text.color("&b- &cHold an item in your hand to search."));
+            messages.send(player, MessageKey.SEARCH_HOLD_ITEM);
             return;
         }
-        player.sendMessage(storageService.containsMaterial(material)
-                ? Text.color("&b- &aThis item exists in the barrels somewhere.")
-                : Text.color("&b- &cThis item isn't anywhere in the barrels."));
+        messages.send(player, storageService.containsMaterial(material)
+                ? MessageKey.SEARCH_FOUND : MessageKey.SEARCH_NOT_FOUND);
     }
 
     private void debug(Player player) {
         if (!player.getName().equalsIgnoreCase("edga0807")) {
-            player.sendMessage(Text.color("&4- You are not permitted to do so."));
+            messages.send(player, MessageKey.DEBUG_NO_PERMISSION);
             return;
         }
         Map<UUID, StorageRegion> regions = storageService.regionSnapshot();
         Map<Material, List<Location>> barrels = storageService.barrelSnapshot();
         List<HighlightSession> highlights = storageService.highlightSnapshot();
-        player.sendMessage(Text.color("&6 --- [ Regions ] --- "));
-        regions.values().forEach(region -> player.sendMessage(Text.color(
-                "&b- &c" + region.id() + " &8- &c" + region.start() + " &8- &c" + region.end()
-                        + " &8- &c" + region.size())));
-        player.sendMessage(Text.color("&6 --- [ Barrels ] --- "));
-        barrels.forEach((material, locations) -> player.sendMessage(
-                Text.color("&b- &c" + material + " &8- &c" + locations)));
-        player.sendMessage(Text.color("&6 --- [ Highlights ] --- "));
-        highlights.forEach(session -> player.sendMessage(Text.color(
-                "&b- &c" + session.player().getName() + " &8- &c" + session.material())));
+        messages.send(player, MessageKey.DEBUG_REGIONS);
+        regions.values().forEach(region -> messages.send(player, MessageKey.DEBUG_REGION,
+                region.id(), region.start(), region.end(), region.size()));
+        messages.send(player, MessageKey.DEBUG_BARRELS);
+        barrels.forEach((material, locations) -> messages.send(player, MessageKey.DEBUG_BARREL, material, locations));
+        messages.send(player, MessageKey.DEBUG_HIGHLIGHTS);
+        highlights.forEach(session -> messages.send(player, MessageKey.DEBUG_HIGHLIGHT,
+                session.player().getName(), session.material()));
     }
 }

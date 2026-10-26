@@ -3,6 +3,7 @@ version: '${version}'
 main: lt.mredgariux.saugykla.SaugyklaPlugin
 api-version: '1.20'
 description: Organizes deposited items into labelled storage barrels.
+author: MrEdgariux
 commands:
   saugykla:
     description: Opens and manages the storage system.
